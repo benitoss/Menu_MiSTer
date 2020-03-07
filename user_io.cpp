@@ -37,6 +37,15 @@
 
 static char core_path[1024];
 
+uint64_t contador = 0;
+uint64_t last_joy = 0x0;
+uint8_t joy_button1 =0;
+uint8_t joy_button2 =0;
+uint8_t joy_up = 0;
+uint8_t joy_down = 0;
+uint8_t joy_left = 0;
+uint8_t joy_right = 0;  
+
 static uint8_t vol_att = 0;
 unsigned long vol_set_timeout = 0;
 
@@ -942,7 +951,7 @@ int user_io_get_joyswap()
 
 void user_io_analog_joystick(unsigned char joystick, char valueX, char valueY)
 {
-	uint8_t joy = (joystick > 1 || !joyswap) ? joystick : (joystick >= 15) ? (joystick ^ 16) : (joystick ^ 1);
+	uint8_t joy = (joystick > 1 || !joyswap) ? joystick : (joystick >= 7) ? (joystick ^ 16) : (joystick ^ 1);
 
 	if (core_type == CORE_TYPE_8BIT)
 	{
@@ -1575,6 +1584,67 @@ int user_io_use_cheats()
 	return use_cheats;
 }
 
+uint16_t check_DB9_change()
+{
+	uint16_t joy;
+	spi_uio_cmd_cont(UIO_DB9_GET);
+	joy = spi_w(0);
+	DisableIO();
+	
+	if (contador == 3000) {
+		contador = 0;
+		
+		if ( (joy >> 5) & 0x1 & !joy_button2) {  
+			user_io_kbd(KEY_ESC, 1);
+			joy_button2 =1;
+		} else if (joy_button2==1){
+			user_io_kbd(KEY_ESC, 0);
+			joy_button2=0;
+		}
+		
+		if ( (joy >> 4) & 0x1 & !joy_button1) {  
+			user_io_kbd(KEY_ENTER, 1);
+			joy_button1 =1;
+		} else if (joy_button1==1){
+			user_io_kbd(KEY_ENTER, 0);
+			joy_button1=0;
+		}
+		
+		if ( (joy >> 3) & 0x1 & !joy_up) {  
+			user_io_kbd(KEY_UP, 1);
+			joy_up = 1 ;
+		} else if (joy_up==1){
+			user_io_kbd(KEY_UP, 0);
+			joy_up = 0;
+		}
+
+		if ( (joy >> 2) & 0x1 & !joy_down) {  
+			user_io_kbd(KEY_DOWN, 1);
+			joy_down =1;
+		} else if (joy_down==1){
+			user_io_kbd(KEY_DOWN, 0);
+			joy_down = 0;
+		}
+	
+		if ( (joy >> 1) & 0x1& 0x1 & !joy_left) { 
+			user_io_kbd(KEY_LEFT, 1);
+			joy_left = 1 ;
+		} else if (joy_left==1){
+			user_io_kbd(KEY_LEFT, 0);
+			joy_left = 0 ;
+		}
+		if ( joy  & 0x1 & !joy_right) { 
+			user_io_kbd(KEY_RIGHT, 1);
+			joy_right = 1 ;
+		} else if (joy_right==1){
+			user_io_kbd(KEY_RIGHT, 0);
+			joy_right = 0 ;
+		}
+	}
+	contador ++;
+	return joy;
+}  
+
 static void check_status_change()
 {
 	static u_int8_t last_status_change = 0;
@@ -2065,7 +2135,6 @@ void user_io_send_buttons(char force)
 		}
 
 		key_map = map;
-		if (user_io_osd_is_visible()) map &= ~BUTTON2;
 		spi_uio_cmd16(UIO_BUT_SW, map);
 		printf("sending keymap: %X\n", map);
 		if ((key_map & BUTTON2) && is_x86_core()) x86_init();
@@ -2134,6 +2203,7 @@ void user_io_poll()
 	}
 
 	user_io_send_buttons(0);
+	check_DB9_change();
 
 	if (is_minimig())
 	{
